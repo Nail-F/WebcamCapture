@@ -549,21 +549,17 @@ int WebcamCapture::Work()
 
   av_log(NULL, AV_LOG_INFO, "Start capture the frames!\n");
 
-  int64_t duration[2] = {0};
-
-
-
   auto now = std::chrono::steady_clock::now();
   auto start = now;
   auto until = now + std::chrono::seconds(duration_sec_);
 
-  int64_t start_time = av_gettime();
   int cnt_in = 0;
   auto one_second = now + std::chrono::seconds(1);
   while (now < until)
   {
     now = std::chrono::steady_clock::now();
 
+    //show process
     if (now > one_second)
     {
       av_log(NULL, AV_LOG_INFO, ".");
