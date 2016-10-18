@@ -12,11 +12,13 @@ extern "C"
 
 WebcamCapture::WebcamCapture(uint32_t duration_sec, const std::string &output_filename, const std::string &camera_name, const std::string &mic_name)
   : status_(SUCCESS)
-  , packet_(NULL)
+  , packet_in_(NULL)
+  , packet_out_(NULL)
   , frame_(NULL)
   , ifmt_ctx_(NULL)
   , input_format_(NULL)
   , ofmt_ctx_(NULL)
+  , filtered_frame_(NULL)
   , camera_name_(camera_name)
   , mic_name_(mic_name)
   , output_filename_(output_filename)
@@ -42,13 +44,21 @@ WebcamCapture::~WebcamCapture()
     flush_filters();
     av_write_trailer(ofmt_ctx_);
   }
-  if (packet_)
+  if (packet_in_)
   {
-    av_packet_unref(packet_);
+    av_packet_unref(packet_in_);
+  }
+  if (packet_out_)
+  {
+    av_packet_unref(packet_in_);
   }
   if (frame_)
   {
     av_frame_free(&frame_);
+  }
+  if (filtered_frame_)
+  {
+    av_frame_free(&filtered_frame_);
   }
   if (ifmt_ctx_)
   {
@@ -544,8 +554,8 @@ int WebcamCapture::Work()
 {
   int ret = 0;
   int frame_decoded = 0;
-  packet_ = new AVPacket;
-  av_init_packet(packet_);
+  packet_in_ = new AVPacket;
+  av_init_packet(packet_in_);
 
   av_log(NULL, AV_LOG_INFO, "Start capture the frames!\n");
 
@@ -566,11 +576,11 @@ int WebcamCapture::Work()
       one_second = now + std::chrono::seconds(1);
     }
 
-    if ((ret = av_read_frame(ifmt_ctx_, packet_)) < 0)
+    if ((ret = av_read_frame(ifmt_ctx_, packet_in_)) < 0)
     {
       break;
     }
-    int stream_index = packet_->stream_index;
+    int stream_index = packet_in_->stream_index;
 
     AVMediaType type = ifmt_ctx_->streams[stream_index]->codec->codec_type;
     av_log(NULL, AV_LOG_DEBUG, "Demuxer gave frame of stream_index %u\n",
@@ -586,14 +596,22 @@ int WebcamCapture::Work()
         break;
       }
 
-      packet_->dts = packet_->pts = cnt_in;
+
+
+      packet_in_->dts = packet_in_->pts = cnt_in;
+
+      auto delta = (now - start).count();
+      packet_in_->dts = packet_in_->pts = delta;
+      av_packet_rescale_ts(packet_in_,
+      ifmt_ctx_->streams[stream_index]->time_base,
+      ifmt_ctx_->streams[stream_index]->codec->time_base);
 
       if (type == AVMEDIA_TYPE_VIDEO)
       {
         ++cnt_in;
       }
       dec_func_ptr dec_func = (type == AVMEDIA_TYPE_VIDEO) ? avcodec_decode_video2 : avcodec_decode_audio4;
-      ret = dec_func(stream_ctx_[stream_index].dec_ctx, frame_, &frame_decoded, packet_);
+      ret = dec_func(stream_ctx_[stream_index].dec_ctx, frame_, &frame_decoded, packet_in_);
 
       if (ret < 0)
       {
@@ -620,17 +638,17 @@ int WebcamCapture::Work()
     else
     {
       /* remux this frame without reencoding */
-      av_packet_rescale_ts(packet_,
+      av_packet_rescale_ts(packet_in_,
         ifmt_ctx_->streams[stream_index]->time_base,
         ofmt_ctx_->streams[stream_index]->time_base);
 
-      ret = av_interleaved_write_frame(ofmt_ctx_, packet_);
+      ret = av_interleaved_write_frame(ofmt_ctx_, packet_in_);
       if (ret < 0)
       {
         break;
       }
     }
-    av_packet_unref(packet_);
+    av_packet_unref(packet_in_);
   }
   av_log(NULL, AV_LOG_INFO, "\nStop!\n");
 
@@ -649,7 +667,6 @@ int WebcamCapture::encode_write_frame(AVFrame *filtered_frame, unsigned int stre
 {
   int ret = 0;
   int frame_decoded_local = 0;
-  AVPacket out_packet;
   AVMediaType type = ifmt_ctx_->streams[stream_index]->codec->codec_type;
   enc_func_ptr enc_func = (type == AVMEDIA_TYPE_VIDEO) ? avcodec_encode_video2 : avcodec_encode_audio2;
 
@@ -660,13 +677,14 @@ int WebcamCapture::encode_write_frame(AVFrame *filtered_frame, unsigned int stre
 
   av_log(NULL, AV_LOG_DEBUG, "Encoding frame\n");
   /* encode filtered frame */
-  out_packet.data = NULL;
-  out_packet.size = 0;
-  av_init_packet(&out_packet);
-  ret = enc_func(stream_ctx_[stream_index].enc_ctx, &out_packet, filtered_frame, frame_decoded);
+  packet_out_ = new AVPacket;
+  av_init_packet(packet_out_);
+  packet_out_->data = NULL;
+  packet_out_->size = 0;
+  ret = enc_func(stream_ctx_[stream_index].enc_ctx, packet_out_, filtered_frame, frame_decoded);
 
-  out_packet.pts = filtered_frame->pkt_pts;
-  out_packet.dts = filtered_frame->pkt_dts;
+  packet_out_->pts = filtered_frame->pkt_pts;
+  packet_out_->dts = filtered_frame->pkt_dts;
   av_frame_free(&filtered_frame);
   if (ret < 0)
   {
@@ -678,10 +696,10 @@ int WebcamCapture::encode_write_frame(AVFrame *filtered_frame, unsigned int stre
   }
 
   /* prepare packet for muxing */
-  out_packet.stream_index = stream_index;
-  av_packet_rescale_ts(&out_packet,
-                        ofmt_ctx_->streams[stream_index]->codec->time_base,
-                        ofmt_ctx_->streams[stream_index]->time_base);
+  packet_out_->stream_index = stream_index;
+  av_packet_rescale_ts(packet_out_,
+                       ofmt_ctx_->streams[stream_index]->codec->time_base,
+                       ofmt_ctx_->streams[stream_index]->time_base);
 
   //av_log(NULL, AV_LOG_INFO, "%3.0d) out_packet[%d] %lld, %lld\n", cnt_out, stream_index, out_packet.pts, out_packet.dts);
   
@@ -692,16 +710,15 @@ int WebcamCapture::encode_write_frame(AVFrame *filtered_frame, unsigned int stre
   }
 
   /* mux encoded frame */
-  ret = av_interleaved_write_frame(ofmt_ctx_, &out_packet);
+  ret = av_interleaved_write_frame(ofmt_ctx_, packet_out_);
 
-  av_packet_unref(&out_packet);
+  av_packet_unref(packet_out_);
   return ret;
 }
 
 int WebcamCapture::filter_encode_write_frame(AVFrame *frame, unsigned int stream_index)
 {
   int ret;
-  AVFrame *filt_frame;
 
   av_log(NULL, AV_LOG_DEBUG, "Pushing decoded frame to filters\n");
   /* push the decoded frame into the filtergraph */
@@ -716,15 +733,15 @@ int WebcamCapture::filter_encode_write_frame(AVFrame *frame, unsigned int stream
   /* pull filtered frames from the filtergraph */
   while (1)
   {
-    filt_frame = av_frame_alloc();
-    if (!filt_frame)
+    filtered_frame_ = av_frame_alloc();
+    if (!filtered_frame_)
     {
       ret = AVERROR(ENOMEM);
       break;
     }
     av_log(NULL, AV_LOG_DEBUG, "Pulling filtered frame from filters\n");
     ret = av_buffersink_get_frame(filter_ctx_[stream_index].buffersink_ctx,
-      filt_frame);
+      filtered_frame_);
     if (ret < 0)
     {
       /* if no more frames for output - returns AVERROR(EAGAIN)
@@ -735,12 +752,12 @@ int WebcamCapture::filter_encode_write_frame(AVFrame *frame, unsigned int stream
       {
         ret = 0;
       }
-      av_frame_free(&filt_frame);
+      av_frame_free(&filtered_frame_);
       break;
     }
 
-    filt_frame->pict_type = AV_PICTURE_TYPE_NONE;
-    ret = encode_write_frame(filt_frame, stream_index, NULL);
+    filtered_frame_->pict_type = AV_PICTURE_TYPE_NONE;
+    ret = encode_write_frame(filtered_frame_, stream_index, NULL);
     if (ret < 0)
     {
       break;

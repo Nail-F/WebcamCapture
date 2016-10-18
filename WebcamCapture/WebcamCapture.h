@@ -55,13 +55,15 @@ public:
    int flush_encoder(unsigned int stream_index);
  
  private:
-   AVPacket         *packet_;
+   AVPacket         *packet_in_;
+   AVPacket         *packet_out_;
    AVFrame          *frame_;
    AVFormatContext  *ifmt_ctx_;
    AVInputFormat    *input_format_;
    AVFormatContext  *ofmt_ctx_;
    FilteringContext *filter_ctx_;
    StreamContext    *stream_ctx_;
+   AVFrame          *filtered_frame_;
  
    status status_;
  
