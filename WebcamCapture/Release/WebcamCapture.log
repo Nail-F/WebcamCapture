@@ -1,22 +1,5 @@
-﻿Build started 18.10.2016 14:03:58.
-     1>Project "D:\WORK\WebcamCapture\WebcamCapture\WebcamCapture.vcxproj" on node 2 (Build target(s)).
-     1>ClCompile:
-         D:\Program Files (x86)\Microsoft Visual Studio 2012\VC\bin\CL.exe /c /Zi /nologo /W3 /WX- /sdl /O2 /Oi /Oy- /GL /D WIN32 /D NDEBUG /D _CONSOLE /D _UNICODE /D UNICODE /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Release\\" /Fd"Release\vc110.pdb" /Gd /TP /analyze- /errorReport:prompt WebcamCapture.cpp
-         WebcamCapture.cpp
-     1>WebcamCapture.cpp(55): warning C4018: '<' : signed/unsigned mismatch
-     1>WebcamCapture.cpp(85): warning C4018: '<' : signed/unsigned mismatch
-     1>WebcamCapture.cpp(157): warning C4018: '<' : signed/unsigned mismatch
-       Link:
-         D:\Program Files (x86)\Microsoft Visual Studio 2012\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"D:\WORK\WebcamCapture\Release\WebcamCapture.exe" /INCREMENTAL:NO /NOLOGO Strmiids.lib avcodec.lib avformat.lib avfilter.lib avutil.lib avdevice.lib swscale.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"D:\WORK\WebcamCapture\Release\WebcamCapture.pdb" /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"D:\WORK\WebcamCapture\Release\WebcamCapture.lib" /MACHINE:X86 /SAFESEH:NO Release\main.obj
-         Release\Params.obj
-         Release\StringAorW.obj
-         Release\WebcamCapture.obj
-         Release\WinDevices.obj
-         Generating code
-         Finished generating code
-         WebcamCapture.vcxproj -> D:\WORK\WebcamCapture\Release\WebcamCapture.exe
-     1>Done Building Project "D:\WORK\WebcamCapture\WebcamCapture\WebcamCapture.vcxproj" (Build target(s)).
+﻿Build started 18.10.2016 23:04:09.
 
 Build succeeded.
 
-Time Elapsed 00:00:02.17
+Time Elapsed 00:00:00.03
