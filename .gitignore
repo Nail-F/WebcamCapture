@@ -1,0 +1,10 @@
+*.idb
+*.ilk
+*.lastbuildstate
+[Bb]in
+[Dd]ebug*/
+[Rr]elease*/
+*.obj
+*.opensdf
+*.pdb
+*.tlog
